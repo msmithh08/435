@@ -1,0 +1,141 @@
+---
+title: "US Cancer Mortality"
+author: "McKenna Smith"
+date: "11/20/2018"
+output: pdf_document
+---
+```{r, include = FALSE}
+library(ggplot2)
+library(lattice)
+library(ggplot2)
+library(knitr, markdown)
+library(reshape, reshape2)
+```
+
+
+# Introduction
+Data on cancer mortality rates were collected from white males who lived in 1940 and 1960. This was an observational study. We want to determine if age, and possible year, have a significant effect on cancer mortality rates in white males.
+
+
+## Hypotheses
+Our null hypothesis was that age has no impact on deaths by cancer. Our alternative was that age does affect deaths caused by cancer. Out alpha level was 0.05.
+```{r, include=FALSE}
+# read in raw data
+cancerog <- read.table(text="
+<1	141	1,784,033	45	906,897
+1-4	926	7,065,148	201	3,794,573
+5-14	1,253	15,658,730	320	10,003,544
+15-24	1,080	10,482,916	670	10,629,526
+25-34	1,869	9,939,972	1,126	9,465,330
+35-44	4,891	10,563,872	3,160	8,249,558
+45-54	14,956	9,114,202	9,723	7,294,330
+55-64	30,888	6,850,263	17,935	5,022,499
+65-74	41,725	4,702,482	22,179	2,920,220
+75-84	26,501	1,874,619	13,461	1,019,504
+85+	5,928	330,915	2,238	142,532
+", sep="\t")
+
+# reform the data to have year be one variable
+age <- cancerog[,1]
+age1 <- rep(age,each=2)
+year60 <- t(rep("1960",11))
+year40 <- t(rep("1940", 11))
+year <- rbind(t(year60),t(year40))
+canc1960 <- cancerog[,c(2,3)]
+names(canc1960) <- c("deaths", "pop")
+canc1940 <- cancerog[,c(4,5)]
+names(canc1940) <- c("deaths", "pop")
+cancer2 <- rbind(canc1960,canc1940)
+cancer <- cbind(age, cancer2,year)
+cancer$deaths <- as.numeric(gsub(",","",cancer$deaths))
+cancer$pop <- as.numeric(gsub(",","",cancer$pop))
+cancer$age <- rep(c("<1","1-4","5-14","15-24","25-34","35-44","45-54","55-64","65-74","75-84","85+"),2)
+cancer$nage <- rep(c(1,2.5,9.5,19.5,29.5,39.5,49.5,59.5,69.5,79.5,85),2)
+cancerog1 <- cancer[,-c(5,6)]
+```
+
+```{r write txt file of data for SAS, include=FALSE}
+
+# write(t(cancerog1), ncolumns = 4, file="cancer.txt", sep=" ")
+```
+
+
+# Summary 
+```{r, echo=FALSE}
+kable(cancerog1, caption="US Cancer Mortality Rates", align=c("c","c"))
+```
+Selvin, S. (1991) Statistical analysis of epidemiological data, New York: Oxford University Press, Table 1.21.
+
+## Exploratory Data Analysis
+As we can see from the graph below, deaths by cancer seem to increase as age rises. Though, at almost age 80 they drop. This might be because population of individuals at age 80 decreases, so deaths would decrease as well.
+
+```{r, echo=FALSE}
+
+bwplot(deaths~nage, data=cancer, xlab="Age", ylab="Deaths", main="Frequency of Cancer Deaths by Age")
+```
+
+```{r Naive Analysis, include=FALSE}
+# aov for poisson
+anova(lm(deaths~pop+age+year, data=cancer))
+# anova(lm(log(deaths)~age+year,weights = pop, data=cancer))
+# anova(lm(log(deaths)~age+year,weights = deaths, data=cancer))
+# anova(lm(deaths/pop~age+year,data=cancer))
+# anova(lm(asin(sqrt(deaths/pop))~age+year,data=cancer))
+```
+
+```{r GLM}
+# if year is significant, talk about why
+
+glm1 <- glm(cbind(deaths,pop-deaths)~age*year,data=cancer, family=binomial) # saturated model, no residual dfs
+anova(glm1)
+1-514/488776 #99.9% of variability is being explained by age and year 
+1-2066/488776 #99.6% of variability is explained by age
+```
+
+```{r}
+# could make function (for poisson vs binomial/logit)
+glm2 <- glm(cbind(deaths,pop-deaths)~age+year,data=cancer,family=binomial) # year last b/c it's smaller when doing step down, no interaction
+anova(glm2)
+pred2 <- predict(glm2,type="response") # probabilities from binomial, predicted counts
+glm3 <- glm(cbind(deaths,pop-deaths)~age,data=cancer,family=binomial)
+pred3 <- predict(glm3,type="response")
+pred2 - pred3
+glm4 <- glm(cbind(deaths,pop-deaths)~nage+age,data=cancer,family=binomial)
+anova(glm4)
+1-12808/488776
+cancer$nage2 <- cancer$nage^2
+glm5 <- glm(cbind(deaths,pop-deaths)~nage+nage2+age,data=cancer,family=binomial)
+anova(glm5)
+glm6 <- glm(cbind(deaths,pop-deaths)~nage,data=cancer,family=binomial)
+anova(glm6)
+pred6 <- predict(glm6,type="response")
+```
+```{r}
+# plot predicted versus residuals
+# is this a continuous or categorical variable?
+resids6 <- residuals(glm6)
+plot(pred6, resids6)
+
+# plot resids against each x
+plot(cancer$year,resids6) # predicted value is a linear combination
+plot(cancer$nage, resids6)
+```
+
+
+
+
+```{r}
+newcancer <- cbind(cancer,pred2,pred3)
+ggplot(newcancer,aes(x=pred3,y=pred2,color=year))+geom_point()
+ggplot(newcancer,aes(x=nage,y=pred2,color=year))+geom_point()
+ggplot(newcancer,aes(x=nage,y=pred6,color=year))+geom_point()
+pred6*100000 # expect 3 deaths if age <1 out of 100,000
+```
+
+```{r}
+# count tables
+xtabs(formula=cbind(deaths,pop)~year,data=cancer)
+xtabs(formula=cbind(deaths,pop)~age,data=cancer) # if all variation explained by not having year
+```
+
+

@@ -1,0 +1,133 @@
+---
+title: "Rabbit Fetuses"
+author: "McKenna Smith"
+date: "11/20/2018"
+output: pdf_document
+---
+# Introduction
+In an experimental study, researchers gave 12 female rabbits a treatment and waited from the 6th to the 18th days of gestation. On day 30, the number of fetuses (dead and alive) for each fetuses was counted. The same thing happened for a control group of 12 untreated female rabbits and their fetuses. We wanted to analyze whether the number of alive fetuses was higher for the rabbits that received the treatment.
+
+## Hypotheses
+Our null hypothesis was that the treatment distributed to the female rabbits had no effect on the outcome of fetuses. Our alternative hypothesis was that the treatment had an affect on the number of alive fetuses at the end of the 30 day period. Our alpha level was 0.05.
+
+
+```{r Libraries, include=FALSE}
+library(ggplot2)
+library(lattice)
+library(ggplot2)
+library(knitr, markdown)
+library(reshape, reshape2)
+library(dplyr)
+```
+
+we decide our own scientific question
+```{r Data, include=FALSE}
+control <- read.table(text="
+2	3	3
+5	8	11
+7	12	12
+1	4	4
+6	9	9
+2	7	7
+5	6	7
+3	3	5
+4	7	7
+4	9	9
+5	10	11
+5	8	8
+",sep="\t")
+control$type <- rep("control",12)
+colnames(control) <- c("livem", "live", "fetus", "type")
+control$livef <- control$live - control$livem
+control$died <- control$fetus - control$live
+
+# we want one of the variables to be gender?
+# what's the response? how many lived, or died, or just how many fetuses? reorder data to match that
+
+treated <- read.table(text="
+5	11	11
+4	7	10
+5	7	7
+6	6	6
+4	7	8
+4	9	9
+4	7	9
+5	7	10
+0	0	2
+2	6	6
+7	11	11
+3	6	6
+", sep="\t")
+treated$type <- rep("treated",12)
+colnames(treated) <- c("livem", "live", "fetus", "type")
+treated$livef <- treated$live - treated$livem
+treated$died <- treated$fetus - treated$live
+
+rabbitsboth <- rbind(control, treated)
+rabbits <- rabbitsboth[,c(1,5,2,3,6,4)]
+rabbits$type <- as.factor(rabbits$type)
+rabbits$deathprop <- rabbits$died / rabbits$fetus
+```
+
+
+```{r table, echo=FALSE}
+kable(rabbits, caption="Rabbit Fetus Deaths", align=c("c","c"))
+```
+Jun Shao and Shein-Chung Chow (1990) Test for treatment effect based on binary data with random sample sizes. Australian Journal of Statistics, 32, 53-70.
+
+```{r, echo=FALSE}
+plot(rabbits$type, rabbits$deathprop, ylab="Proportion of Rabbit Deaths", xlab="Treatment Type")
+```
+
+## Exploratory Data Analysis
+The boxplot shown above dispalys the proportion of fetuses that died, given treatment. It seems treated rabbits produced more dead fetuses, with a high outlier of 1, meaning all the fetuses from that rabbit died.
+
+```{r, include=FALSE}
+packsum <- rabbits %>% group_by(type) %>% summarize(Mean=mean(deathprop), 
+                                                    Variance=var(deathprop))
+
+kable(packsum, caption="Summary Statistics", align = c("c","c"), digits=3)
+```
+
+
+```{r Naive Analysis, echo=FALSE}
+anova(lm(deathprop~type + livef + livem, data=rabbits))
+```
+```{r}
+glm1 <- glm(deathprop~type+live+livem, data=rabbits, family=poisson)
+anova(glm1)
+
+glm2 <- glm(cbind(died,live)~type+livem+livef, data=rabbits, family=binomial)
+anova(glm2)
+
+glm3 <- glm(died~type+livem+livef, data=rabbits, family=poisson)
+anova(glm3)
+
+```
+
+```{r}
+# don't throw away main effects until you've explored interactions
+
+# to fit next glm after 1st one, take the big ones and use that interaction
+# * versus :,  : does a by b. * said also generated main effects, if using : must use main effects
+# don't like to have main effects thrown out if you keep the interaction
+
+# compare models
+# the model with less parameters with have greater variance
+# compare counts of model you're sure of vs model with more than that that might be good too
+# the one that's more precise should be one with most parameters in it
+# les parameters preds - more parameters preds ?? idk look at birds code from 11.28
+
+
+# linearity
+# if data is linear, agesquare and agecube deviance would be 0
+# if they're not, linear is not sufficient, if you feel like rates are changing b/c of a lurking variable, investigate by adding agesquare and agecube into the model
+
+# preds and resids
+# when you plot, preds first, resids 2nd like plot(pred1, resids1)
+# then look at plot(age, resids1) to compare 
+# then preds for other terms in the model
+# we compare b/c if a term had explained everything, there wouldn't be anything left in resids 
+# we don't want there to be a pattern?
+```
+

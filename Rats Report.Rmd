@@ -1,0 +1,79 @@
+---
+title: "Rat Shocks"
+author: "McKenna Smith"
+date: "11/20/2018"
+output: pdf_document
+---
+
+# Introduction 
+In an experimental study, researchers tested rats to see if giving a shock to rats while they tried to complete a task would help them learn faster and complete the task more quickly. As rats scampered through a shuttlebox, time was recorded. If the time was greater than 5 seconds, the rat received a shock during the next attempt in the shuttlebox. Below is the data for number of shocks received for the rat and the average time it took the rat to get through the shuttleback for that number of shocks. We wanted to analyze if the electric shock decreased time the rat took to get through the shuttlebox.
+
+## Hypotheses
+Our null hypothesis was that receiving an electric shock didn't affect the rat's rat at getting through the shuttlebox. Our alternative hypothesis is that receiving an electric shock had a statistically significant difference on the time it took the rat to get through the shuttlebox. Our alpha level was 0.05.
+
+```{r, include=FALSE}
+library(ggplot2)
+library(lattice)
+library(ggplot2)
+library(knitr, markdown)
+library(reshape, reshape2)
+```
+
+
+```{r Read in Data, include=FALSE}
+rats1 <- read.table(sep=" ", text="
+0 11.4
+1 11.9
+2 7.1
+3 14.2
+4 5.9
+5 6.1
+6 5.4 
+7 3.1
+8 5.7
+9 4.4
+10 4.0
+11 2.8
+12 2.6
+13 2.4
+14 5.2
+15 2.0
+")
+
+colnames(rats1) <- c("shocks", "time")
+# create new var shocks as a factor?
+rats <- rats1
+rats$shockfactor <- as.factor(rats$shocks)
+
+rats$success <- ifelse(rats$time < 5, 1, 0)
+```
+
+```{r, echo=FALSE}
+kable(rats1, caption="Rat Shock Times", align=c("c","c"))
+```
+Bond, N.W. (1979) Impairment of shuttlebox avoidance-learning following repeated alcohol withdrawal episodes in rats. Pharmacology, Biochemistry and Behavior, 11, 589-591.
+
+```{r, echo=FALSE}
+plot(time~shocks, data=rats)
+plot(success~shocks, data=rats)
+```
+
+```{r, echo=FALSE}
+ggplot(rats,aes(x=shocks,y=time, color=shockfactor))+geom_point()
+```
+
+## Exploratory Data Analysis
+In our graph, as the colors go from orange to pink, the number of shocks increase. As seen from the graph, generally, the more shocks the rat received, the lower its average time to get through the shuttlebox. 
+
+
+```{r Naive Analysis, include=FALSE}
+anova(lm(success~shocks, data=rats))
+```
+
+```{r, include=FALSE}
+glm1 <- glm(success~shocks, data=rats, family="poisson")
+anova(glm1)
+glm(success ~ shocks + shockfactor, data=rats, family=binomial)
+```
+
+
